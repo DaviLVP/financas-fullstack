@@ -13,8 +13,6 @@ Dashboard em Tempo Real: Visualização de Ganhos Totais, Gastos do Mês, Saldo 
 
 Histórico Completo: Lista de transações com suporte a Edição (Update) e Exclusão (Delete).
 
-Interface Dark Mode: Design moderno, focado em legibilidade e experiência do usuário.
-
 🛠️ Tecnologias Utilizadas
 Backend (API)
 Node.js & Express: Servidor e rotas.
