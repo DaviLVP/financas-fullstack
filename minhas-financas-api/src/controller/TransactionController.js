@@ -61,18 +61,19 @@ module.exports = {
 
       let totalIncome = 0;
       let totalExpense = 0;
-      let currentMonthExpense = 0; 
+      let currentMonthExpense = 0;
+      let currentMonthIncome = 0;
 
       transactions.forEach(t => {
+        const tDate = new Date(t.date);
+        const sameMonth = (tDate.getMonth() + 1) === currentMonth && tDate.getFullYear() === currentYear;
+
         if (t.type === 'income') {
           totalIncome += t.amount;
+          if (sameMonth) currentMonthIncome += t.amount;
         } else if (t.type === 'expense') {
-          totalExpense += t.amount; 
-          
-          const tDate = new Date(t.date);
-          if ((tDate.getMonth() + 1) === currentMonth && tDate.getFullYear() === currentYear) {
-            currentMonthExpense += t.amount; 
-          }
+          totalExpense += t.amount;
+          if (sameMonth) currentMonthExpense += t.amount;
         }
       });
 
@@ -89,6 +90,7 @@ module.exports = {
 
       return res.status(200).json({
         mesAtual: `${currentMonth}/${currentYear}`,
+        receitaMes: currentMonthIncome.toFixed(2),
         receitaTotal: totalIncome.toFixed(2),
         despesaDesteMes: currentMonthExpense.toFixed(2),
         despesaTotal: totalExpense.toFixed(2),

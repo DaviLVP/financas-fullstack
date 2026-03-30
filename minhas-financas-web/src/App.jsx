@@ -6,7 +6,7 @@ import './index.css'
 // --- HEADER ---
 const Header = ({ mesAtual }) => {
   const location = useLocation()
-  const isReserves = location.pathname === '/reservas'
+  const path = location.pathname
 
   return (
     <header className="app-header">
@@ -15,8 +15,9 @@ const Header = ({ mesAtual }) => {
         Minhas Finanças
       </Link>
       <nav className="header-nav">
-        <Link to="/" className={`nav-link ${!isReserves ? 'nav-link-active' : ''}`}>Dashboard</Link>
-        <Link to="/reservas" className={`nav-link ${isReserves ? 'nav-link-active' : ''}`}>Reservas</Link>
+        <Link to="/" className={`nav-link ${path === '/' ? 'nav-link-active' : ''}`}>Dashboard</Link>
+        <Link to="/reservas" className={`nav-link ${path === '/reservas' ? 'nav-link-active' : ''}`}>Reservas</Link>
+        <Link to="/cartoes" className={`nav-link ${path === '/cartoes' ? 'nav-link-active' : ''}`}>Cartões</Link>
       </nav>
       {mesAtual && (
         <span className="header-date">📅 {mesAtual}</span>
@@ -128,7 +129,7 @@ const QuickReserveModal = ({ saldoDisponivel, onClose, onSaved }) => {
 }
 
 // --- DASHBOARD ---
-const Dashboard = ({ summary, transactions, onDelete, onReserveSaved }) => {
+const Dashboard = ({ summary, transactions, onDelete, onReserveSaved, totalFatura }) => {
   const navigate = useNavigate()
   const [showReserveModal, setShowReserveModal] = useState(false)
 
@@ -151,23 +152,30 @@ const Dashboard = ({ summary, transactions, onDelete, onReserveSaved }) => {
       <div className="summary-grid">
         <div className="summary-card card-income">
           <div className="card-icon">📈</div>
-          <span className="card-label">Ganhos Totais</span>
-          <span className="card-value">R$ {fmt(summary?.receitaTotal)}</span>
-          <span className="card-sub">Receitas acumuladas</span>
+          <span className="card-label">Ganhos do Mês</span>
+          <span className="card-value">R$ {fmt(summary?.receitaMes)}</span>
+          <span className="card-sub">Receitas de {summary?.mesAtual}</span>
         </div>
 
         <div className="summary-card card-expense">
           <div className="card-icon">📉</div>
           <span className="card-label">Gastos do Mês</span>
           <span className="card-value">R$ {fmt(summary?.despesaDesteMes)}</span>
-          <span className="card-sub">Despesas do mês atual</span>
+          <span className="card-sub">Despesas de {summary?.mesAtual}</span>
         </div>
 
         <div className="summary-card card-balance">
-          <div className="card-icon">💳</div>
+          <div className="card-icon">🏦</div>
           <span className="card-label">Saldo Disponível</span>
           <span className="card-value">R$ {fmt(summary?.saldoDisponivel ?? summary?.saldoGeral)}</span>
           <span className="card-sub">Saldo livre após reservas</span>
+        </div>
+
+        <div className="summary-card card-fatura">
+          <div className="card-icon">💳</div>
+          <span className="card-label">Fatura Total</span>
+          <span className="card-value">R$ {fmt(totalFatura)}</span>
+          <span className="card-sub">Soma das faturas em aberto</span>
         </div>
       </div>
 
@@ -221,6 +229,7 @@ const Dashboard = ({ summary, transactions, onDelete, onReserveSaved }) => {
                 <th>Data</th>
                 <th>Descrição</th>
                 <th>Tipo</th>
+                <th>Pagamento</th>
                 <th>Valor</th>
                 <th>Ações</th>
               </tr>
@@ -228,7 +237,7 @@ const Dashboard = ({ summary, transactions, onDelete, onReserveSaved }) => {
             <tbody>
               {transactions.map(t => (
                 <tr key={t._id}>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  <td className="td-date">
                     {new Date(t.date).toLocaleDateString('pt-BR')}
                   </td>
                   <td style={{ fontWeight: 500 }}>{t.description}</td>
@@ -237,8 +246,17 @@ const Dashboard = ({ summary, transactions, onDelete, onReserveSaved }) => {
                       {t.type === 'income' ? '↑ Ganho' : '↓ Despesa'}
                     </span>
                   </td>
+                  <td>
+                    {t.type === 'income' ? (
+                      <span className="pagamento-badge pagamento-entrada">Entrada</span>
+                    ) : t.cardId ? (
+                      <span className="pagamento-badge pagamento-cartao">💳 {t.cardId.name}</span>
+                    ) : (
+                      <span className="pagamento-badge pagamento-dinheiro">💵 Dinheiro</span>
+                    )}
+                  </td>
                   <td className={t.type === 'income' ? 'amount-income' : 'amount-expense'}>
-                    {t.type === 'income' ? '+' : '−'} R$ {t.amount.toFixed(2)}
+                    {t.type === 'income' ? '+' : '−'} R$ {fmt(t.amount)}
                   </td>
                   <td>
                     <div className="actions-cell">
@@ -764,6 +782,117 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
   )
 }
 
+// --- PÁGINA DE CARTÕES ---
+const CartoesPage = ({ faturas, onRefresh }) => {
+  const [showNewCard, setShowNewCard] = useState(false)
+  const [editingCard, setEditingCard] = useState(null)
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR')
+
+  const handleCardCreated = async () => {
+    setShowNewCard(false)
+    onRefresh()
+  }
+
+  const handleCardUpdated = () => {
+    setEditingCard(null)
+    onRefresh()
+  }
+
+  const totalFatura = faturas.reduce((sum, f) => sum + Number(f.fatura), 0)
+
+  return (
+    <div className="page">
+      {showNewCard && (
+        <NewCardModal onClose={() => setShowNewCard(false)} onCreated={handleCardCreated} />
+      )}
+      {editingCard && (
+        <EditCardModal card={editingCard} onClose={() => setEditingCard(null)} onUpdated={handleCardUpdated} />
+      )}
+
+      <div className="page-title">
+        <h1>Cartões de Crédito</h1>
+        <p>Acompanhe a fatura de cada cartão no período atual.</p>
+      </div>
+
+      <div className="cartoes-summary-bar">
+        <span className="cartoes-summary-label">Fatura Total em Aberto</span>
+        <span className="cartoes-summary-value">R$ {fmt(totalFatura)}</span>
+        <button className="btn btn-primary" onClick={() => setShowNewCard(true)}>+ Novo Cartão</button>
+      </div>
+
+      {faturas.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">💳</div>
+          <p>Nenhum cartão cadastrado ainda.<br />Adicione um cartão para acompanhar suas faturas.</p>
+        </div>
+      ) : (
+        <div className="cartoes-grid">
+          {faturas.map(f => (
+            <div key={f._id} className={`cartao-card ${f.isPaid ? 'cartao-paid' : ''}`}>
+              <div className="cartao-header">
+                <div className="cartao-title-row">
+                  <span className="cartao-icon">💳</span>
+                  <div>
+                    <h3 className="cartao-name">{f.name}</h3>
+                    {f.limit > 0 && (
+                      <span className="cartao-limit">Limite: R$ {fmt(f.limit)}</span>
+                    )}
+                  </div>
+                </div>
+                <button className="btn-edit-card" onClick={() => setEditingCard(f)} title="Editar cartão">✏️</button>
+              </div>
+
+              <div className="cartao-fatura-section">
+                <div className="cartao-fatura-valor">
+                  <span className="cartao-fatura-label">
+                    {f.isPaid ? 'Acumulando próxima fatura' : 'Fatura em aberto'}
+                  </span>
+                  <span className="cartao-fatura-amount">R$ {fmt(f.fatura)}</span>
+                </div>
+                <div className={`cartao-due-badge ${f.isPaid ? 'due-paid' : 'due-pending'}`}>
+                  {f.isPaid
+                    ? `✓ Venceu dia ${f.dueDay}`
+                    : `Vence dia ${f.dueDay}`}
+                </div>
+              </div>
+
+              <div className="cartao-period">
+                Período: {fmtDate(f.periodStart)} a {fmtDate(f.periodEnd)}
+              </div>
+
+              {f.transactions.length > 0 ? (
+                <div className="cartao-transactions">
+                  <table className="fin-table fin-table-sm">
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {f.transactions.map(t => (
+                        <tr key={t._id}>
+                          <td>{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                          <td>{t.description}</td>
+                          <td className="amount-expense">R$ {fmt(t.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="cartao-empty">Nenhuma despesa neste período.</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const EditCardModal = ({ card, onClose, onUpdated }) => {
   const [name, setName] = useState(card.name)
   const [dueDay, setDueDay] = useState(card.dueDay)
@@ -843,6 +972,7 @@ export default function App() {
   const [summary, setSummary] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [cards, setCards] = useState([])
+  const [faturas, setFaturas] = useState([])
 
   const fetchSummary = async () => {
     try {
@@ -853,14 +983,16 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [resS, resT, resC] = await Promise.all([
+      const [resS, resT, resC, resF] = await Promise.all([
         api.get('/transactions/summary'),
         api.get('/transactions'),
         api.get('/cards'),
+        api.get('/cards/faturas'),
       ])
       setSummary(resS.data)
       setTransactions(resT.data.reverse())
       setCards(resC.data)
+      setFaturas(resF.data)
     } catch {}
   }
 
@@ -872,6 +1004,8 @@ export default function App() {
       fetchData()
     }
   }
+
+  const totalFatura = faturas.reduce((sum, f) => sum + Number(f.fatura), 0)
 
   return (
     <>
@@ -885,6 +1019,7 @@ export default function App() {
               transactions={transactions}
               onDelete={handleDelete}
               onReserveSaved={fetchSummary}
+              totalFatura={totalFatura}
             />
           }
         />
@@ -896,6 +1031,10 @@ export default function App() {
               onSummaryRefresh={fetchSummary}
             />
           }
+        />
+        <Route
+          path="/cartoes"
+          element={<CartoesPage faturas={faturas} onRefresh={fetchData} />}
         />
         <Route path="/novo/:type" element={<TransactionPage cards={cards} onSave={fetchData} refreshCards={fetchData} />} />
         <Route path="/editar/:id" element={<TransactionPage cards={cards} onSave={fetchData} refreshCards={fetchData} />} />

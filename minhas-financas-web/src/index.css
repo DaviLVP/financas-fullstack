@@ -25,6 +25,10 @@
   --balance-light: #e0e7ff;
   --balance-dark: #4f46e5;
 
+  --fatura: #f59e0b;
+  --fatura-light: #fef3c7;
+  --fatura-dark: #d97706;
+
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04);
@@ -133,12 +137,16 @@ body {
 /* ---- CARDS DE RESUMO ---- */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   margin-bottom: 32px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
+  .summary-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 500px) {
   .summary-grid { grid-template-columns: 1fr; }
 }
 
@@ -190,6 +198,8 @@ body {
 .card-expense .card-value { color: var(--expense-dark); }
 .card-balance .card-icon { background: var(--balance-light); }
 .card-balance .card-value { color: var(--balance-dark); }
+.card-fatura .card-icon { background: var(--fatura-light); }
+.card-fatura .card-value { color: var(--fatura-dark); }
 
 /* ---- SEÇÃO DE AÇÕES ---- */
 .actions-bar {
@@ -343,6 +353,25 @@ body {
 .type-expense { background: var(--expense-light); color: var(--expense-dark); }
 
 .actions-cell { display: flex; gap: 6px; }
+
+.td-date { color: var(--text-muted); font-size: 0.875rem; white-space: nowrap; }
+
+.pagamento-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pagamento-cartao  { background: var(--balance-light); color: var(--balance-dark); }
+.pagamento-dinheiro { background: var(--income-light); color: var(--income-dark); }
+.pagamento-entrada  { background: #f1f5f9; color: var(--text-muted); }
+
+.fin-table-sm th,
+.fin-table-sm td { padding: 8px 12px; font-size: 0.8rem; }
 
 .empty-state {
   text-align: center;
@@ -843,3 +872,131 @@ body {
 /* ---- BADGES DE RESERVA ---- */
 .type-saved { background: var(--saved-light); color: var(--saved-dark); }
 .type-invested { background: var(--invested-light); color: var(--invested-dark); }
+
+/* ---- PÁGINA DE CARTÕES ---- */
+.cartoes-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+.cartoes-summary-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  flex: 1;
+}
+.cartoes-summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fatura-dark);
+}
+
+.cartoes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 24px;
+}
+
+.cartao-card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cartao-card.cartao-paid {
+  border-color: var(--income);
+  border-left: 4px solid var(--income);
+}
+
+.cartao-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cartao-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cartao-icon { font-size: 1.5rem; }
+.cartao-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+.cartao-limit {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.cartao-fatura-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+.cartao-fatura-valor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cartao-fatura-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.cartao-fatura-amount {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--fatura-dark);
+}
+.cartao-paid .cartao-fatura-amount { color: var(--income-dark); }
+
+.cartao-due-badge {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.due-pending { background: var(--fatura-light); color: var(--fatura-dark); }
+.due-paid    { background: var(--income-light); color: var(--income-dark); }
+
+.cartao-period {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.cartao-transactions {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.cartao-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+}
+
+.btn-primary {
+  background: var(--balance);
+  color: white;
+}
+.btn-primary:hover { background: var(--balance-dark); }

@@ -5,9 +5,13 @@ const CardSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
-  dueDay: { 
-    type: Number, 
-    required: true 
+  dueDay: {
+    type: Number,
+    required: true
+  },
+  limit: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 
