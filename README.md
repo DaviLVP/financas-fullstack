@@ -1,6 +1,3 @@
-Um bom README.md é o cartão de visitas do seu projeto. Ele explica para outros desenvolvedores (ou recrutadores) o que o sistema faz e como colocá-lo para rodar.
-
-Como seu projeto é um Monorepo (API + Web), aqui está um modelo completo e profissional para você copiar e salvar na sua pasta raiz (MINHAS-FINANCAS):
 
 💰 Gestão Financeira Inteligente
 Sistema Full Stack para controle de finanças pessoais, focado em gestão de cartões de crédito, fluxo de caixa e projeção de parcelamentos automáticos.
