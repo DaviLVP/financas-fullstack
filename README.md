@@ -32,7 +32,6 @@ Axios: Consumo da API.
 
 React Router Dom: Navegação entre páginas (Dashboard e Formulários).
 
-CSS Moderno: Estilização personalizada em Dark Mode.
 
 📂 Estrutura do Projeto
 O projeto utiliza uma estrutura de Monorepo:
