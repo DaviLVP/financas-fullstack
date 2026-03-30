@@ -477,13 +477,14 @@ const ReservesPage = ({ summary, onSummaryRefresh }) => {
 const NewCardModal = ({ onClose, onCreated }) => {
   const [name, setName] = useState('')
   const [limit, setLimit] = useState('')
+  const [dueDay, setDueDay] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await api.post('/cards', { name, limit: Number(limit) || 0 })
+      const res = await api.post('/cards', { name, limit: Number(limit) || 0, dueDay: Number(dueDay) })
       onCreated(res.data)
     } finally {
       setLoading(false)
@@ -508,6 +509,19 @@ const NewCardModal = ({ onClose, onCreated }) => {
               onChange={e => setName(e.target.value)}
               required
               autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Dia de Vencimento</label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="form-input"
+              placeholder="Ex: 10"
+              value={dueDay}
+              onChange={e => setDueDay(e.target.value)}
+              required
             />
           </div>
           <div className="form-group">
@@ -547,6 +561,7 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
   const [cardId, setCardId] = useState('')
   const [cards, setCards] = useState(initialCards || [])
   const [showNewCard, setShowNewCard] = useState(false)
+  const [editingCard, setEditingCard] = useState(null)
 
   useEffect(() => { setCards(initialCards || []) }, [initialCards])
 
@@ -570,6 +585,12 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
     setCards(updated)
     setCardId(newCard._id)
     setShowNewCard(false)
+    if (refreshCards) refreshCards()
+  }
+
+  const handleCardUpdated = (updatedCard) => {
+    setCards(cards.map(c => c._id === updatedCard._id ? updatedCard : c))
+    setEditingCard(null)
     if (refreshCards) refreshCards()
   }
 
@@ -604,6 +625,13 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
         <NewCardModal
           onClose={() => setShowNewCard(false)}
           onCreated={handleCardCreated}
+        />
+      )}
+      {editingCard && (
+        <EditCardModal
+          card={editingCard}
+          onClose={() => setEditingCard(null)}
+          onUpdated={handleCardUpdated}
         />
       )}
 
@@ -671,20 +699,27 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
                         <span>Sem cartão</span>
                       </button>
                       {cards.map(c => (
-                        <button
-                          key={c._id}
-                          type="button"
-                          className={`card-option ${cardId === c._id ? 'card-option-selected' : ''}`}
-                          onClick={() => setCardId(c._id)}
-                        >
-                          <span className="card-option-icon">💳</span>
-                          <span>{c.name}</span>
-                          {c.limit > 0 && (
-                            <span className="card-option-limit">
-                              Limite: R$ {Number(c.limit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </button>
+                        <div key={c._id} className="card-option-wrapper">
+                          <button
+                            type="button"
+                            className={`card-option ${cardId === c._id ? 'card-option-selected' : ''}`}
+                            onClick={() => setCardId(c._id)}
+                          >
+                            <span className="card-option-icon">💳</span>
+                            <span>{c.name}</span>
+                            {c.limit > 0 && (
+                              <span className="card-option-limit">
+                                Limite: R$ {Number(c.limit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-edit-card"
+                            onClick={() => setEditingCard(c)}
+                            title="Editar cartão"
+                          >✏️</button>
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -726,6 +761,80 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
         </div>
       </div>
     </>
+  )
+}
+
+const EditCardModal = ({ card, onClose, onUpdated }) => {
+  const [name, setName] = useState(card.name)
+  const [dueDay, setDueDay] = useState(card.dueDay)
+  const [limit, setLimit] = useState(card.limit || '')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await api.put(`/cards/${card._id}`, { name, dueDay: Number(dueDay), limit: Number(limit) || 0 })
+      onUpdated(res.data)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">✏️ Editar Cartão</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Nome do Cartão</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: Nubank, Inter, Itaú..."
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Dia de Vencimento</label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="form-input"
+              placeholder="Ex: 10"
+              value={dueDay}
+              onChange={e => setDueDay(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Limite (R$) <span className="form-label-hint">opcional</span></label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="form-input"
+              placeholder="0,00"
+              value={limit}
+              onChange={e => setLimit(e.target.value)}
+            />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 

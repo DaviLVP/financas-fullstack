@@ -18,5 +18,17 @@ module.exports = {
     } catch (error) {
       return res.status(500).json({ error: 'Erro ao buscar cartões', details: error.message });
     }
+  },
+
+  async update(req, res) {
+    try {
+      const { id } = req.params;
+      const { name, dueDay, limit } = req.body;
+      const card = await Card.findByIdAndUpdate(id, { name, dueDay, limit }, { new: true, runValidators: true });
+      if (!card) return res.status(404).json({ error: 'Cartão não encontrado' });
+      return res.status(200).json(card);
+    } catch (error) {
+      return res.status(400).json({ error: 'Erro ao atualizar cartão', details: error.message });
+    }
   }
 };
