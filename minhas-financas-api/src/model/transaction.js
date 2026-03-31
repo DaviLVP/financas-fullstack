@@ -15,9 +15,14 @@ const TransactionSchema = new mongoose.Schema({
     required: false 
   },
 
-  installmentInfo: { 
-    type: String, 
-    required: false 
+  installmentInfo: {
+    type: String,
+    required: false
+  },
+  accountId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Account',
+    required: false
   }
 }, { timestamps: true });
 

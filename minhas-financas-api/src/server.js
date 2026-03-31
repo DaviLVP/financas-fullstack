@@ -6,6 +6,7 @@ const cors = require('cors');
 const transactionRoutes = require('./routes/transactionRoutes');
 const cardRoutes = require('./routes/cardRoutes');
 const reserveRoutes = require('./routes/reserveRoutes');
+const accountRoutes = require('./routes/accountRoutes');
 
 const app = express();
 app.use(cors());
@@ -18,6 +19,7 @@ mongoose.connect(process.env.DATABASE_URL)
 app.use('/api', transactionRoutes);
 app.use('/api', cardRoutes);
 app.use('/api', reserveRoutes);
+app.use('/api', accountRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

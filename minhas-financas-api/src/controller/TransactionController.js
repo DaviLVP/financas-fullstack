@@ -5,7 +5,7 @@ module.exports = {
   // 1. CRIAR: Salva novas transações (com lógica de parcelas)
   async create(req, res) {
     try {
-      const { description, totalAmount, type, date, cardId, installments = 1 } = req.body;
+      const { description, totalAmount, type, date, cardId, accountId, installments = 1 } = req.body;
 
       if (!description || !totalAmount || !type || !date) {
         return res.status(400).json({ error: 'Preencha todos os campos obrigatórios' });
@@ -29,6 +29,7 @@ module.exports = {
           type: type,
           date: installmentDate,
           cardId: cardId || null,
+          accountId: accountId || null,
           installmentInfo: installmentInfo
         });
       }

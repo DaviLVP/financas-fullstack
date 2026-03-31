@@ -18,6 +18,7 @@ const Header = ({ mesAtual }) => {
         <Link to="/" className={`nav-link ${path === '/' ? 'nav-link-active' : ''}`}>Dashboard</Link>
         <Link to="/reservas" className={`nav-link ${path === '/reservas' ? 'nav-link-active' : ''}`}>Reservas</Link>
         <Link to="/cartoes" className={`nav-link ${path === '/cartoes' ? 'nav-link-active' : ''}`}>Cartões</Link>
+        <Link to="/contas" className={`nav-link ${path === '/contas' ? 'nav-link-active' : ''}`}>Contas</Link>
       </nav>
       {mesAtual && (
         <span className="header-date">📅 {mesAtual}</span>
@@ -492,17 +493,25 @@ const ReservesPage = ({ summary, onSummaryRefresh }) => {
 }
 
 // --- MODAL DE NOVO CARTÃO ---
-const NewCardModal = ({ onClose, onCreated }) => {
+const NewCardModal = ({ onClose, onCreated, accounts = [] }) => {
   const [name, setName] = useState('')
   const [limit, setLimit] = useState('')
   const [dueDay, setDueDay] = useState('')
+  const [closingDay, setClosingDay] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await api.post('/cards', { name, limit: Number(limit) || 0, dueDay: Number(dueDay) })
+      const res = await api.post('/cards', {
+        name,
+        limit: Number(limit) || 0,
+        dueDay: Number(dueDay),
+        closingDay: closingDay ? Number(closingDay) : undefined,
+        accountId: accountId || undefined
+      })
       onCreated(res.data)
     } finally {
       setLoading(false)
@@ -530,6 +539,18 @@ const NewCardModal = ({ onClose, onCreated }) => {
             />
           </div>
           <div className="form-group">
+            <label className="form-label">Dia de Fechamento <span className="form-label-hint">opcional</span></label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="form-input"
+              placeholder="Ex: 25"
+              value={closingDay}
+              onChange={e => setClosingDay(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
             <label className="form-label">Dia de Vencimento</label>
             <input
               type="number"
@@ -554,6 +575,17 @@ const NewCardModal = ({ onClose, onCreated }) => {
               onChange={e => setLimit(e.target.value)}
             />
           </div>
+          {accounts.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Conta vinculada <span className="form-label-hint">opcional</span></label>
+              <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
+                <option value="">Nenhuma</option>
+                {accounts.map(a => (
+                  <option key={a._id} value={a._id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -567,7 +599,7 @@ const NewCardModal = ({ onClose, onCreated }) => {
 }
 
 // --- PÁGINA DE FORMULÁRIO (CRIAR OU EDITAR) ---
-const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
+const TransactionPage = ({ cards: initialCards, accounts: initialAccounts, onSave, refreshCards }) => {
   const { id, type: urlType } = useParams()
   const navigate = useNavigate()
 
@@ -577,6 +609,7 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
   const [installments, setInstallments] = useState(1)
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [cardId, setCardId] = useState('')
+  const [accountId, setAccountId] = useState('')
   const [cards, setCards] = useState(initialCards || [])
   const [showNewCard, setShowNewCard] = useState(false)
   const [editingCard, setEditingCard] = useState(null)
@@ -593,6 +626,7 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
           setType(item.type)
           setDate(new Date(item.date).toISOString().split('T')[0])
           setCardId(item.cardId?._id || item.cardId || '')
+          setAccountId(item.accountId || '')
         }
       })
     }
@@ -622,6 +656,7 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
       date,
       installments: Number(installments),
       cardId: cardId || null,
+      accountId: accountId || null,
     }
     if (id) await api.put(`/transactions/${id}`, data)
     else await api.post('/transactions', data)
@@ -686,6 +721,18 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
                 required
               />
             </div>
+
+            {!isExpense && initialAccounts && initialAccounts.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">Conta de destino <span className="form-label-hint">opcional</span></label>
+                <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
+                  <option value="">Nenhuma</option>
+                  {initialAccounts.map(a => (
+                    <option key={a._id} value={a._id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {isExpense && (
               <>
@@ -783,11 +830,22 @@ const TransactionPage = ({ cards: initialCards, onSave, refreshCards }) => {
 }
 
 // --- PÁGINA DE CARTÕES ---
-const CartoesPage = ({ faturas, onRefresh }) => {
+const CartoesPage = ({ faturas, onRefresh, accounts = [] }) => {
   const [showNewCard, setShowNewCard] = useState(false)
   const [editingCard, setEditingCard] = useState(null)
+  const [expandedFuture, setExpandedFuture] = useState(new Set())
 
   const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR')
+
+  const toggleFuture = (id) => {
+    setExpandedFuture(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const fmtMonth = (d) => new Date(d).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   const handleCardCreated = async () => {
     setShowNewCard(false)
@@ -804,10 +862,10 @@ const CartoesPage = ({ faturas, onRefresh }) => {
   return (
     <div className="page">
       {showNewCard && (
-        <NewCardModal onClose={() => setShowNewCard(false)} onCreated={handleCardCreated} />
+        <NewCardModal onClose={() => setShowNewCard(false)} onCreated={handleCardCreated} accounts={accounts} />
       )}
       {editingCard && (
-        <EditCardModal card={editingCard} onClose={() => setEditingCard(null)} onUpdated={handleCardUpdated} />
+        <EditCardModal card={editingCard} onClose={() => setEditingCard(null)} onUpdated={handleCardUpdated} accounts={accounts} />
       )}
 
       <div className="page-title">
@@ -846,7 +904,7 @@ const CartoesPage = ({ faturas, onRefresh }) => {
               <div className="cartao-fatura-section">
                 <div className="cartao-fatura-valor">
                   <span className="cartao-fatura-label">
-                    {f.isPaid ? 'Acumulando próxima fatura' : 'Fatura em aberto'}
+                    {f.isClosed ? 'Fatura fechada' : 'Fatura em aberto'}
                   </span>
                   <span className="cartao-fatura-amount">R$ {fmt(f.fatura)}</span>
                 </div>
@@ -859,6 +917,9 @@ const CartoesPage = ({ faturas, onRefresh }) => {
 
               <div className="cartao-period">
                 Período: {fmtDate(f.periodStart)} a {fmtDate(f.periodEnd)}
+                {f.closingDay && (
+                  <span className="cartao-closing-day"> · Fecha dia {f.closingDay}</span>
+                )}
               </div>
 
               {f.transactions.length > 0 ? (
@@ -885,6 +946,86 @@ const CartoesPage = ({ faturas, onRefresh }) => {
               ) : (
                 <p className="cartao-empty">Nenhuma despesa neste período.</p>
               )}
+
+              {f.nextFatura && (
+                <div className="cartao-next-fatura">
+                  <div className="cartao-next-fatura-header">
+                    <span className="cartao-next-fatura-label">Próxima fatura</span>
+                    <span className="cartao-next-fatura-amount">R$ {fmt(f.nextFatura.total)}</span>
+                  </div>
+                  <div className="cartao-period">
+                    Período: {fmtDate(f.nextFatura.periodStart)} a {fmtDate(f.nextFatura.periodEnd)}
+                  </div>
+                  {f.nextFatura.transactions.length > 0 ? (
+                    <div className="cartao-transactions">
+                      <table className="fin-table fin-table-sm">
+                        <thead>
+                          <tr>
+                            <th>Data</th>
+                            <th>Descrição</th>
+                            <th>Valor</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {f.nextFatura.transactions.map(t => (
+                            <tr key={t._id}>
+                              <td>{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                              <td>{t.description}</td>
+                              <td className="amount-expense">R$ {fmt(t.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="cartao-empty">Nenhuma despesa neste período.</p>
+                  )}
+                </div>
+              )}
+
+              {f.futurePeriods && f.futurePeriods.length > 0 && (
+                <div className="cartao-future">
+                  <button
+                    className="cartao-future-toggle"
+                    onClick={() => toggleFuture(f._id)}
+                  >
+                    {expandedFuture.has(f._id)
+                      ? '▲ Ocultar meses futuros'
+                      : `▼ Ver ${f.futurePeriods.length} ${f.futurePeriods.length === 1 ? 'mês futuro' : 'meses futuros'} (parcelas)`}
+                  </button>
+                  {expandedFuture.has(f._id) && f.futurePeriods.map((p, i) => (
+                    <div key={i} className="cartao-future-period">
+                      <div className="cartao-next-fatura-header">
+                        <span className="cartao-next-fatura-label">{fmtMonth(p.periodEnd)}</span>
+                        <span className="cartao-next-fatura-amount">R$ {fmt(p.total)}</span>
+                      </div>
+                      <div className="cartao-period">
+                        Período: {fmtDate(p.periodStart)} a {fmtDate(p.periodEnd)}
+                      </div>
+                      <div className="cartao-transactions">
+                        <table className="fin-table fin-table-sm">
+                          <thead>
+                            <tr>
+                              <th>Data</th>
+                              <th>Descrição</th>
+                              <th>Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.transactions.map(t => (
+                              <tr key={t._id}>
+                                <td>{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                                <td>{t.description}</td>
+                                <td className="amount-expense">R$ {fmt(t.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -893,17 +1034,25 @@ const CartoesPage = ({ faturas, onRefresh }) => {
   )
 }
 
-const EditCardModal = ({ card, onClose, onUpdated }) => {
+const EditCardModal = ({ card, onClose, onUpdated, accounts = [] }) => {
   const [name, setName] = useState(card.name)
   const [dueDay, setDueDay] = useState(card.dueDay)
+  const [closingDay, setClosingDay] = useState(card.closingDay || '')
   const [limit, setLimit] = useState(card.limit || '')
+  const [accountId, setAccountId] = useState(card.accountId || '')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await api.put(`/cards/${card._id}`, { name, dueDay: Number(dueDay), limit: Number(limit) || 0 })
+      const res = await api.put(`/cards/${card._id}`, {
+        name,
+        dueDay: Number(dueDay),
+        closingDay: closingDay ? Number(closingDay) : undefined,
+        limit: Number(limit) || 0,
+        accountId: accountId || undefined
+      })
       onUpdated(res.data)
     } finally {
       setLoading(false)
@@ -931,6 +1080,18 @@ const EditCardModal = ({ card, onClose, onUpdated }) => {
             />
           </div>
           <div className="form-group">
+            <label className="form-label">Dia de Fechamento <span className="form-label-hint">opcional</span></label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="form-input"
+              placeholder="Ex: 25"
+              value={closingDay}
+              onChange={e => setClosingDay(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
             <label className="form-label">Dia de Vencimento</label>
             <input
               type="number"
@@ -955,6 +1116,17 @@ const EditCardModal = ({ card, onClose, onUpdated }) => {
               onChange={e => setLimit(e.target.value)}
             />
           </div>
+          {accounts.length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Conta vinculada <span className="form-label-hint">opcional</span></label>
+              <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
+                <option value="">Nenhuma</option>
+                {accounts.map(a => (
+                  <option key={a._id} value={a._id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -967,12 +1139,181 @@ const EditCardModal = ({ card, onClose, onUpdated }) => {
   )
 }
 
+// --- PÁGINA DE CONTAS ---
+const ContasPage = ({ accounts, onRefresh }) => {
+  const [showNew, setShowNew] = useState(false)
+  const [editingAccount, setEditingAccount] = useState(null)
+  const [name, setName] = useState('')
+  const [initialBalance, setInitialBalance] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await api.post('/accounts', { name, initialBalance: Number(initialBalance) || 0 })
+      setName('')
+      setInitialBalance('')
+      setShowNew(false)
+      onRefresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUpdate = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await api.put(`/accounts/${editingAccount._id}`, {
+        name: editingAccount.name,
+        initialBalance: Number(editingAccount.initialBalance) || 0
+      })
+      setEditingAccount(null)
+      onRefresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Deseja remover esta conta?')) return
+    await api.delete(`/accounts/${id}`)
+    onRefresh()
+  }
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString('pt-BR')
+
+  return (
+    <div className="page">
+      <div className="page-title">
+        <h1>Contas</h1>
+        <p>Gerencie suas contas bancárias e acompanhe o saldo com débito automático das faturas.</p>
+      </div>
+
+      <div className="cartoes-summary-bar">
+        <span className="cartoes-summary-label">Total em Contas</span>
+        <span className="cartoes-summary-value">
+          R$ {fmt(accounts.reduce((s, a) => s + Number(a.balance), 0))}
+        </span>
+        <button className="btn btn-primary" onClick={() => setShowNew(v => !v)}>
+          {showNew ? 'Cancelar' : '+ Nova Conta'}
+        </button>
+      </div>
+
+      {showNew && (
+        <form className="conta-form" onSubmit={handleCreate}>
+          <div className="form-group">
+            <label className="form-label">Nome da Conta</label>
+            <input className="form-input" placeholder="Ex: Nubank, Itaú, Bradesco..." value={name} onChange={e => setName(e.target.value)} required autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Saldo Inicial (R$)</label>
+            <input className="form-input" type="number" step="0.01" placeholder="0,00" value={initialBalance} onChange={e => setInitialBalance(e.target.value)} />
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Salvando...' : 'Criar Conta'}</button>
+          </div>
+        </form>
+      )}
+
+      {accounts.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-icon">🏦</div>
+          <p>Nenhuma conta cadastrada ainda.<br />Adicione uma conta para acompanhar seu saldo.</p>
+        </div>
+      ) : (
+        <div className="cartoes-grid">
+          {accounts.map(a => (
+            <div key={a._id} className="cartao-card">
+              {editingAccount?._id === a._id ? (
+                <form onSubmit={handleUpdate}>
+                  <div className="form-group">
+                    <label className="form-label">Nome</label>
+                    <input className="form-input" value={editingAccount.name} onChange={e => setEditingAccount({ ...editingAccount, name: e.target.value })} required autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Saldo Inicial (R$)</label>
+                    <input className="form-input" type="number" step="0.01" value={editingAccount.initialBalance} onChange={e => setEditingAccount({ ...editingAccount, initialBalance: e.target.value })} />
+                  </div>
+                  <div className="form-actions">
+                    <button type="button" className="btn btn-ghost" onClick={() => setEditingAccount(null)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={loading}>Salvar</button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="cartao-header">
+                    <div className="cartao-title-row">
+                      <span className="cartao-icon">🏦</span>
+                      <h3 className="cartao-name">{a.name}</h3>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn-edit-card" onClick={() => setEditingAccount(a)} title="Editar">✏️</button>
+                      <button className="btn-edit-card" onClick={() => handleDelete(a._id)} title="Remover">🗑️</button>
+                    </div>
+                  </div>
+
+                  <div className="cartao-fatura-section">
+                    <div className="cartao-fatura-valor">
+                      <span className="cartao-fatura-label">Saldo atual</span>
+                      <span className="cartao-fatura-amount" style={{ color: Number(a.balance) >= 0 ? 'var(--income-dark)' : 'var(--expense-dark)' }}>
+                        R$ {fmt(a.balance)}
+                      </span>
+                    </div>
+                    {Number(a.projectedBalance) !== Number(a.balance) && (
+                      <div className="cartao-due-badge due-pending">
+                        Projetado: R$ {fmt(a.projectedBalance)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="cartao-period">
+                    Saldo inicial: R$ {fmt(a.initialBalance)} · Receitas: R$ {fmt(a.totalIncome)} · Débitos: R$ {fmt(a.totalDebits)}
+                  </div>
+
+                  {a.linkedCards.length > 0 && (
+                    <div className="conta-cards-list">
+                      <span className="cartao-next-fatura-label">Cartões vinculados</span>
+                      {a.linkedCards.map(c => (
+                        <span key={c._id} className="conta-card-badge">💳 {c.name} · vence dia {c.dueDay}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {a.pendingDebits.length > 0 && (
+                    <div className="cartao-next-fatura">
+                      <div className="cartao-next-fatura-header">
+                        <span className="cartao-next-fatura-label">Débitos pendentes</span>
+                        <span className="cartao-next-fatura-amount" style={{ color: 'var(--expense-dark)' }}>
+                          - R$ {fmt(a.pendingDebits.reduce((s, p) => s + Number(p.total), 0))}
+                        </span>
+                      </div>
+                      {a.pendingDebits.map((p, i) => (
+                        <div key={i} className="cartao-period">
+                          💳 {p.cardName} · vence {fmtDate(p.dueDate)} · R$ {fmt(p.total)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // --- APP PRINCIPAL ---
 export default function App() {
   const [summary, setSummary] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [cards, setCards] = useState([])
   const [faturas, setFaturas] = useState([])
+  const [accounts, setAccounts] = useState([])
 
   const fetchSummary = async () => {
     try {
@@ -983,16 +1324,18 @@ export default function App() {
 
   const fetchData = async () => {
     try {
-      const [resS, resT, resC, resF] = await Promise.all([
+      const [resS, resT, resC, resF, resA] = await Promise.all([
         api.get('/transactions/summary'),
         api.get('/transactions'),
         api.get('/cards'),
         api.get('/cards/faturas'),
+        api.get('/accounts'),
       ])
       setSummary(resS.data)
       setTransactions(resT.data.reverse())
       setCards(resC.data)
       setFaturas(resF.data)
+      setAccounts(resA.data)
     } catch {}
   }
 
@@ -1034,10 +1377,14 @@ export default function App() {
         />
         <Route
           path="/cartoes"
-          element={<CartoesPage faturas={faturas} onRefresh={fetchData} />}
+          element={<CartoesPage faturas={faturas} onRefresh={fetchData} accounts={accounts} />}
         />
-        <Route path="/novo/:type" element={<TransactionPage cards={cards} onSave={fetchData} refreshCards={fetchData} />} />
-        <Route path="/editar/:id" element={<TransactionPage cards={cards} onSave={fetchData} refreshCards={fetchData} />} />
+        <Route
+          path="/contas"
+          element={<ContasPage accounts={accounts} onRefresh={fetchData} />}
+        />
+        <Route path="/novo/:type" element={<TransactionPage cards={cards} accounts={accounts} onSave={fetchData} refreshCards={fetchData} />} />
+        <Route path="/editar/:id" element={<TransactionPage cards={cards} accounts={accounts} onSave={fetchData} refreshCards={fetchData} />} />
       </Routes>
     </>
   )

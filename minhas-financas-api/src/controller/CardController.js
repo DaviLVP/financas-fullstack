@@ -4,8 +4,8 @@ const Transaction = require('../model/transaction');
 module.exports = {
   async create(req, res) {
     try {
-      const { name, dueDay, limit } = req.body;
-      const newCard = await Card.create({ name, dueDay, limit: limit || 0 });
+      const { name, dueDay, closingDay, limit, accountId } = req.body;
+      const newCard = await Card.create({ name, dueDay, closingDay: closingDay || undefined, limit: limit || 0, accountId: accountId || undefined });
       return res.status(201).json(newCard);
     } catch (error) {
       return res.status(400).json({ error: 'Erro ao criar cartão', details: error.message });
@@ -24,8 +24,8 @@ module.exports = {
   async update(req, res) {
     try {
       const { id } = req.params;
-      const { name, dueDay, limit } = req.body;
-      const card = await Card.findByIdAndUpdate(id, { name, dueDay, limit }, { new: true, runValidators: true });
+      const { name, dueDay, closingDay, limit, accountId } = req.body;
+      const card = await Card.findByIdAndUpdate(id, { name, dueDay, closingDay: closingDay || undefined, limit, accountId: accountId || undefined }, { new: true, runValidators: true });
       if (!card) return res.status(404).json({ error: 'Cartão não encontrado' });
       return res.status(200).json(card);
     } catch (error) {
@@ -41,20 +41,15 @@ module.exports = {
 
       const faturas = await Promise.all(cards.map(async (card) => {
         const dueDay = card.dueDay;
+        // Se não tem closingDay, usa dueDay como fallback (comportamento anterior)
+        const closingDay = card.closingDay || dueDay;
 
-        // Período de faturamento: antes do vencimento = fatura em aberto, após = acumulando próxima
-        let periodStart, periodEnd, isPaid;
-        if (todayDay <= dueDay) {
-          // Fatura atual: do dia dueDay+1 do mês passado até dueDay deste mês
-          periodStart = new Date(today.getFullYear(), today.getMonth() - 1, dueDay + 1);
-          periodEnd   = new Date(today.getFullYear(), today.getMonth(), dueDay, 23, 59, 59);
-          isPaid = false;
-        } else {
-          // Fatura fechada: acumulando próxima (dueDay+1 deste mês até dueDay do próximo)
-          periodStart = new Date(today.getFullYear(), today.getMonth(), dueDay + 1);
-          periodEnd   = new Date(today.getFullYear(), today.getMonth() + 1, dueDay, 23, 59, 59);
-          isPaid = true;
-        }
+        const isClosed = todayDay > closingDay;
+        const isPaid = todayDay > dueDay;
+
+        // Período da fatura atual: do dia closingDay+1 do mês passado até closingDay deste mês
+        const periodStart = new Date(today.getFullYear(), today.getMonth() - 1, closingDay + 1);
+        const periodEnd   = new Date(today.getFullYear(), today.getMonth(), closingDay, 23, 59, 59);
 
         const transactions = await Transaction.find({
           cardId: card._id,
@@ -64,13 +59,73 @@ module.exports = {
 
         const totalFatura = transactions.reduce((sum, t) => sum + t.amount, 0);
 
+        // Próxima fatura: acumulando a partir do fechamento até o próximo fechamento
+        let nextFatura = null;
+        let nextPeriodEnd = periodEnd;
+        if (isClosed) {
+          const nextPeriodStart = new Date(today.getFullYear(), today.getMonth(), closingDay + 1);
+          nextPeriodEnd         = new Date(today.getFullYear(), today.getMonth() + 1, closingDay, 23, 59, 59);
+
+          const nextTransactions = await Transaction.find({
+            cardId: card._id,
+            type: 'expense',
+            date: { $gte: nextPeriodStart, $lte: nextPeriodEnd }
+          }).sort({ date: -1 });
+
+          const totalNextFatura = nextTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+          nextFatura = {
+            total: totalNextFatura.toFixed(2),
+            periodStart: nextPeriodStart,
+            periodEnd: nextPeriodEnd,
+            transactions: nextTransactions
+          };
+        }
+
+        // Períodos futuros: parcelas além do próximo período já exibido
+        const futureRawTransactions = await Transaction.find({
+          cardId: card._id,
+          type: 'expense',
+          date: { $gt: nextPeriodEnd }
+        }).sort({ date: 1 });
+
+        const futurePeriodMap = {};
+        futureRawTransactions.forEach(t => {
+          const tDate = new Date(t.date);
+          const tDay  = tDate.getDate();
+          let endYear  = tDate.getFullYear();
+          let endMonth = tDate.getMonth(); // 0-indexed
+          if (tDay > closingDay) {
+            endMonth += 1;
+            if (endMonth > 11) { endMonth = 0; endYear += 1; }
+          }
+          const key = `${endYear}-${String(endMonth).padStart(2, '0')}`;
+          if (!futurePeriodMap[key]) {
+            futurePeriodMap[key] = {
+              periodStart: new Date(endYear, endMonth - 1, closingDay + 1),
+              periodEnd:   new Date(endYear, endMonth, closingDay, 23, 59, 59),
+              transactions: [],
+              total: 0
+            };
+          }
+          futurePeriodMap[key].transactions.push(t);
+          futurePeriodMap[key].total += t.amount;
+        });
+
+        const futurePeriods = Object.entries(futurePeriodMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([, p]) => ({ ...p, total: p.total.toFixed(2) }));
+
         return {
           ...card.toObject(),
           fatura: totalFatura.toFixed(2),
+          isClosed,
           isPaid,
           periodStart,
           periodEnd,
-          transactions
+          transactions,
+          nextFatura,
+          futurePeriods
         };
       }));
 
