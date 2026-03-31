@@ -33,6 +33,17 @@ module.exports = {
     }
   },
 
+  async remove(req, res) {
+    try {
+      const { id } = req.params;
+      const card = await Card.findByIdAndDelete(id);
+      if (!card) return res.status(404).json({ error: 'Cartão não encontrado' });
+      return res.status(200).json({ message: 'Cartão removido com sucesso' });
+    } catch (error) {
+      return res.status(500).json({ error: 'Erro ao remover cartão', details: error.message });
+    }
+  },
+
   async getFaturas(req, res) {
     try {
       const cards = await Card.find();

@@ -498,7 +498,7 @@ const NewCardModal = ({ onClose, onCreated, accounts = [] }) => {
   const [limit, setLimit] = useState('')
   const [dueDay, setDueDay] = useState('')
   const [closingDay, setClosingDay] = useState('')
-  const [accountId, setAccountId] = useState('')
+  const [accountId, setAccountId] = useState(accounts[0]?._id || '')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
@@ -526,6 +526,19 @@ const NewCardModal = ({ onClose, onCreated, accounts = [] }) => {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Conta responsável</label>
+            {accounts.length === 0 ? (
+              <p className="no-cards-hint">Nenhuma conta cadastrada. Crie uma conta antes de adicionar cartões.</p>
+            ) : (
+              <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)} required>
+                <option value="">Selecione uma conta</option>
+                {accounts.map(a => (
+                  <option key={a._id} value={a._id}>{a.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
           <div className="form-group">
             <label className="form-label">Nome do Cartão</label>
             <input
@@ -575,20 +588,9 @@ const NewCardModal = ({ onClose, onCreated, accounts = [] }) => {
               onChange={e => setLimit(e.target.value)}
             />
           </div>
-          {accounts.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Conta vinculada <span className="form-label-hint">opcional</span></label>
-              <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
-                <option value="">Nenhuma</option>
-                {accounts.map(a => (
-                  <option key={a._id} value={a._id}>{a.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button type="submit" className="btn btn-primary" disabled={loading || accounts.length === 0}>
               {loading ? 'Salvando...' : '+ Criar Cartão'}
             </button>
           </div>
@@ -724,9 +726,9 @@ const TransactionPage = ({ cards: initialCards, accounts: initialAccounts, onSav
 
             {!isExpense && initialAccounts && initialAccounts.length > 0 && (
               <div className="form-group">
-                <label className="form-label">Conta de destino <span className="form-label-hint">opcional</span></label>
+                <label className="form-label">Conta de destino</label>
                 <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
-                  <option value="">Nenhuma</option>
+                  <option value="">Selecione uma conta</option>
                   {initialAccounts.map(a => (
                     <option key={a._id} value={a._id}>{a.name}</option>
                   ))}
@@ -857,6 +859,12 @@ const CartoesPage = ({ faturas, onRefresh, accounts = [] }) => {
     onRefresh()
   }
 
+  const handleCardDelete = async (id, name) => {
+    if (!window.confirm(`Deseja excluir o cartão "${name}"? As transações vinculadas não serão removidas.`)) return
+    await api.delete(`/cards/${id}`)
+    onRefresh()
+  }
+
   const totalFatura = faturas.reduce((sum, f) => sum + Number(f.fatura), 0)
 
   return (
@@ -896,9 +904,16 @@ const CartoesPage = ({ faturas, onRefresh, accounts = [] }) => {
                     {f.limit > 0 && (
                       <span className="cartao-limit">Limite: R$ {fmt(f.limit)}</span>
                     )}
+                    {f.accountId && (() => {
+                      const acc = accounts.find(a => a._id === f.accountId)
+                      return acc ? <span className="cartao-account-badge">🏦 {acc.name}</span> : null
+                    })()}
                   </div>
                 </div>
-                <button className="btn-edit-card" onClick={() => setEditingCard(f)} title="Editar cartão">✏️</button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="btn-edit-card" onClick={() => setEditingCard(f)} title="Editar cartão">✏️</button>
+                  <button className="btn-edit-card" onClick={() => handleCardDelete(f._id, f.name)} title="Excluir cartão">🗑️</button>
+                </div>
               </div>
 
               <div className="cartao-fatura-section">
@@ -1116,17 +1131,15 @@ const EditCardModal = ({ card, onClose, onUpdated, accounts = [] }) => {
               onChange={e => setLimit(e.target.value)}
             />
           </div>
-          {accounts.length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Conta vinculada <span className="form-label-hint">opcional</span></label>
-              <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)}>
-                <option value="">Nenhuma</option>
-                {accounts.map(a => (
-                  <option key={a._id} value={a._id}>{a.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Conta responsável</label>
+            <select className="form-input" value={accountId} onChange={e => setAccountId(e.target.value)} required>
+              <option value="">Selecione uma conta</option>
+              {accounts.map(a => (
+                <option key={a._id} value={a._id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="form-actions">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -1145,15 +1158,38 @@ const ContasPage = ({ accounts, onRefresh }) => {
   const [editingAccount, setEditingAccount] = useState(null)
   const [name, setName] = useState('')
   const [initialBalance, setInitialBalance] = useState('')
+  const [addCard, setAddCard] = useState(false)
+  const [cardName, setCardName] = useState('')
+  const [cardClosingDay, setCardClosingDay] = useState('')
+  const [cardDueDay, setCardDueDay] = useState('')
+  const [cardLimit, setCardLimit] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const resetForm = () => {
+    setName('')
+    setInitialBalance('')
+    setAddCard(false)
+    setCardName('')
+    setCardClosingDay('')
+    setCardDueDay('')
+    setCardLimit('')
+  }
 
   const handleCreate = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      await api.post('/accounts', { name, initialBalance: Number(initialBalance) || 0 })
-      setName('')
-      setInitialBalance('')
+      const res = await api.post('/accounts', { name, initialBalance: Number(initialBalance) || 0 })
+      if (addCard && cardName && cardDueDay) {
+        await api.post('/cards', {
+          name: cardName,
+          dueDay: Number(cardDueDay),
+          closingDay: cardClosingDay ? Number(cardClosingDay) : undefined,
+          limit: Number(cardLimit) || 0,
+          accountId: res.data._id
+        })
+      }
+      resetForm()
       setShowNew(false)
       onRefresh()
     } finally {
@@ -1203,6 +1239,7 @@ const ContasPage = ({ accounts, onRefresh }) => {
 
       {showNew && (
         <form className="conta-form" onSubmit={handleCreate}>
+          <h4 className="conta-form-section-title">Dados da Conta</h4>
           <div className="form-group">
             <label className="form-label">Nome da Conta</label>
             <input className="form-input" placeholder="Ex: Nubank, Itaú, Bradesco..." value={name} onChange={e => setName(e.target.value)} required autoFocus />
@@ -1211,9 +1248,37 @@ const ContasPage = ({ accounts, onRefresh }) => {
             <label className="form-label">Saldo Inicial (R$)</label>
             <input className="form-input" type="number" step="0.01" placeholder="0,00" value={initialBalance} onChange={e => setInitialBalance(e.target.value)} />
           </div>
+
+          <label className="conta-toggle-card">
+            <input type="checkbox" checked={addCard} onChange={e => setAddCard(e.target.checked)} />
+            Adicionar cartão de crédito a esta conta
+          </label>
+
+          {addCard && (
+            <>
+              <h4 className="conta-form-section-title" style={{ marginTop: 16 }}>Dados do Cartão</h4>
+              <div className="form-group">
+                <label className="form-label">Nome do Cartão</label>
+                <input className="form-input" placeholder="Ex: Nubank Gold, Itaú Platinum..." value={cardName} onChange={e => setCardName(e.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Dia de Fechamento <span className="form-label-hint">opcional</span></label>
+                <input className="form-input" type="number" min="1" max="31" placeholder="Ex: 25" value={cardClosingDay} onChange={e => setCardClosingDay(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Dia de Vencimento</label>
+                <input className="form-input" type="number" min="1" max="31" placeholder="Ex: 5" value={cardDueDay} onChange={e => setCardDueDay(e.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Limite (R$) <span className="form-label-hint">opcional</span></label>
+                <input className="form-input" type="number" step="0.01" min="0" placeholder="0,00" value={cardLimit} onChange={e => setCardLimit(e.target.value)} />
+              </div>
+            </>
+          )}
+
           <div className="form-actions">
-            <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>Cancelar</button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Salvando...' : 'Criar Conta'}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => { setShowNew(false); resetForm() }}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Salvando...' : addCard ? 'Criar Conta e Cartão' : 'Criar Conta'}</button>
           </div>
         </form>
       )}

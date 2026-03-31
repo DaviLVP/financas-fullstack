@@ -1041,6 +1041,34 @@ body {
   padding: 20px;
   margin-bottom: 24px;
 }
+.conta-form-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.conta-toggle-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.conta-toggle-card input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.cartao-account-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
 .conta-cards-list {
   display: flex;
   flex-wrap: wrap;
